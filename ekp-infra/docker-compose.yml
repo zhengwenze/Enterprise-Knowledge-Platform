@@ -1,0 +1,128 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: ekp-postgres
+    environment:
+      POSTGRES_DB: ekp_db
+      POSTGRES_USER: ekp_user
+      POSTGRES_PASSWORD: ekp_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ekp_user -d ekp_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ekp-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: ekp-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ekp-network
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:latest
+    container_name: ekp-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    volumes:
+      - zookeeper_data:/var/lib/zookeeper/data
+      - zookeeper_logs:/var/lib/zookeeper/log
+    networks:
+      - ekp-network
+
+  kafka:
+    image: confluentinc/cp-kafka:latest
+    container_name: ekp-kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+      - "9093:9093"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,PLAINTEXT_INTERNAL://kafka:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT_INTERNAL
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - ekp-network
+
+  ai-service:
+    build:
+      context: ../ekp-ai-service
+      dockerfile: Dockerfile
+    container_name: ekp-ai-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://ekp_user:ekp_password@postgres:5432/ekp_db
+      REDIS_URL: redis://redis:6379/0
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9093
+    volumes:
+      - ../ekp-ai-service:/app
+      - ai_uploads:/app/uploads
+    networks:
+      - ekp-network
+
+  biz-service:
+    build:
+      context: ../ekp-biz-service
+      dockerfile: Dockerfile
+    container_name: ekp-biz-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/ekp_db
+      SPRING_DATASOURCE_USERNAME: ekp_user
+      SPRING_DATASOURCE_PASSWORD: ekp_password
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+    networks:
+      - ekp-network
+
+volumes:
+  postgres_data:
+  redis_data:
+  zookeeper_data:
+  zookeeper_logs:
+  kafka_data:
+  ai_uploads:
+
+networks:
+  ekp-network:
+    driver: bridge
