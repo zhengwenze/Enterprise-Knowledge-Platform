@@ -10,6 +10,9 @@ pgvector==0.2.4
 python-dotenv==1.0.0
 httpx==0.26.0
 
+# Redis
+redis==5.0.1
+
 # RAG-Anything 核心依赖
 raganything>=0.1.0
 lightrag-hku>=0.1.0
