@@ -9,7 +9,10 @@ print("=" * 60)
 
 print("\n[1/4] 测试ChunkerService...")
 try:
-    from langchain.text_splitter import RecursiveCharacterTextSplitter
+    try:
+        from langchain_text_splitters import RecursiveCharacterTextSplitter
+    except ImportError:
+        from langchain.text_splitter import RecursiveCharacterTextSplitter
     
     text = "这是测试文本。" * 100
     splitter = RecursiveCharacterTextSplitter(

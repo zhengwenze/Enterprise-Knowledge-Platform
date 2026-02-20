@@ -1,7 +1,10 @@
 from typing import List
 from dataclasses import dataclass
 
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+try:
+    from langchain_text_splitters import RecursiveCharacterTextSplitter
+except ImportError:
+    from langchain.text_splitter import RecursiveCharacterTextSplitter
 
 from src.config import settings
 
