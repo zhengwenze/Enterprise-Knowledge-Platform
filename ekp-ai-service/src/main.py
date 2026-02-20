@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from src.api.v1 import documents, qa, health
+from src.api.v1 import documents, qa, health, agent
 from src.config import settings
 from src.services.rag_anything_service import rag_anything_service
 
@@ -24,6 +24,7 @@ app.add_middleware(
 app.include_router(health.router, tags=["Health"])
 app.include_router(documents.router, prefix="/api/v1/documents", tags=["Documents"])
 app.include_router(qa.router, prefix="/api/v1/qa", tags=["Q&A"])
+app.include_router(agent.router, prefix="/api/v1", tags=["Agent"])
 
 
 @app.on_event("startup")

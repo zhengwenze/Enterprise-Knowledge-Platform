@@ -2,13 +2,14 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { FileText, MessageSquare, Home } from 'lucide-react';
+import { FileText, MessageSquare, Home, Bot } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const navItems = [
   { href: '/', label: '首页', icon: Home },
   { href: '/documents', label: '文档管理', icon: FileText },
   { href: '/qa', label: '智能问答', icon: MessageSquare },
+  { href: '/agent', label: 'Agent 助手', icon: Bot },
 ];
 
 export function Sidebar() {

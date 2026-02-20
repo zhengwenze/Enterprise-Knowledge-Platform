@@ -19,6 +19,7 @@ Enterprise Knowledge Platform (EKP) 是一个企业级知识库问答平台，�
 - 📄 **智能文档处理** - 自动解析PDF、Word、TXT、Markdown等多种格式
 - 🔍 **语义检索** - 基于向量相似度的语义搜索
 - 💬 **智能问答** - 结合大语言模型生成准确回答
+- 🤖 **ReAct Agent** - 基于工具调用的智能助手，支持多步推理
 - 🏢 **企业级架构** - 微服务架构，支持高可用部署
 - 🎨 **现代前端** - Next.js 15 + Shadcn/ui 响应式界面
 
@@ -224,6 +225,11 @@ EKP/
 - 右侧文档选择器
 - 答案来源展示
 
+### Agent 助手 (/agent)
+- ReAct 架构智能助手
+- 多步推理和工具调用
+- 推理过程可视化
+
 ---
 
 ## API 文档
@@ -248,6 +254,8 @@ EKP/
 - [x] 向量检索服务
 - [x] LLM问答集成
 - [x] **前端界面开发**
+- [x] **RAG-Anything 多模态集成**
+- [x] **ReAct Agent 智能助手**
 
 ### 🚧 进行中 (Week 3-4)
 
@@ -263,6 +271,8 @@ EKP/
 ## 文档
 
 - [产品功能文档](docs/PRODUCT_FEATURES.md)
+- [Agent 升级路线图](docs/AGENT_UPGRADE_ROADMAP.md)
+- [本地化部署指南](docs/LOCAL_DEPLOYMENT.md)
 - [前端开发文档](ekp-web/README.md)
 - [系统架构设计](ekp-infra/architecture.md)
 - [Week 1 总结](ekp-infra/WEEK1_SUMMARY.md)
