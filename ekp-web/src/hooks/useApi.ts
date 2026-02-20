@@ -5,7 +5,8 @@ import type { Document, QASession, QARequest, UploadResponse } from '@/types';
 async function fetchDocuments(): Promise<Document[]> {
   const response = await fetch(API_ENDPOINTS.documents.list);
   if (!response.ok) throw new Error('Failed to fetch documents');
-  return response.json();
+  const data = await response.json();
+  return data.documents || [];
 }
 
 async function uploadDocument(file: File): Promise<UploadResponse> {
