@@ -5,6 +5,7 @@
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.11-green.svg)](https://www.python.org/)
 [![Java](https://img.shields.io/badge/Java-21-orange.svg)](https://openjdk.org/)
+[![Next.js](https://img.shields.io/badge/Next.js-15-black.svg)](https://nextjs.org/)
 [![Docker](https://img.shields.io/badge/Docker-Ready-blue.svg)](https://www.docker.com/)
 
 ---
@@ -19,6 +20,7 @@ Enterprise Knowledge Platform (EKP) 是一个企业级知识库问答平台，�
 - 🔍 **语义检索** - 基于向量相似度的语义搜索
 - 💬 **智能问答** - 结合大语言模型生成准确回答
 - 🏢 **企业级架构** - 微服务架构，支持高可用部署
+- 🎨 **现代前端** - Next.js 15 + Shadcn/ui 响应式界面
 
 ---
 
@@ -28,9 +30,10 @@ Enterprise Knowledge Platform (EKP) 是一个企业级知识库问答平台，�
 
 - Docker Desktop 4.0+
 - Docker Compose 2.0+
+- Node.js 20+ (开发模式)
 - 8GB+ 可用内存
 
-### 一键启动
+### 一键启动（生产模式）
 
 ```bash
 # 1. 克隆项目
@@ -43,15 +46,28 @@ cd ekp-biz-service && mvn clean package -DskipTests && cd ..
 # 3. 启动所有服务
 cd ekp-infra && docker-compose up -d
 
-# 4. 验证服务
-curl http://localhost:8000/health  # AI Service
-curl http://localhost:8080/health  # Biz Service
+# 4. 访问前端界面
+# http://localhost:3000
+```
+
+### 开发模式启动
+
+```bash
+# 1. 启动后端服务
+cd ekp-infra && docker-compose up -d postgres redis kafka ai-service biz-service
+
+# 2. 启动前端开发服务器
+cd ekp-web && npm install && npm run dev
+
+# 3. 访问前端界面
+# http://localhost:3000
 ```
 
 ### 服务端口
 
 | 服务 | 端口 | 说明 |
 |------|------|------|
+| **Web (前端)** | 3000 | Next.js 前端界面 |
 | AI Service | 8000 | FastAPI RAG服务 |
 | Biz Service | 8080 | Spring Boot业务服务 |
 | PostgreSQL | 5432 | 数据库 (pgvector) |
@@ -64,7 +80,8 @@ curl http://localhost:8080/health  # Biz Service
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                      用户界面层                              │
+│                    前端层 (Next.js 15)                       │
+│              http://localhost:3000                          │
 └─────────────────────────────────────────────────────────────┘
                             │
         ┌───────────────────┼───────────────────┐
@@ -88,6 +105,17 @@ curl http://localhost:8080/health  # Biz Service
 ---
 
 ## 技术栈
+
+### 前端 (ekp-web)
+
+| 技术 | 版本 | 用途 |
+|------|------|------|
+| Next.js | 15 | React 框架 (App Router) |
+| TypeScript | 5.x | 类型安全 |
+| Tailwind CSS | 4.x | 样式框架 |
+| Shadcn/ui | latest | UI 组件库 |
+| Zustand | 4.x | 状态管理 |
+| TanStack Query | 5.x | 数据请求管理 |
 
 ### AI 服务 (ekp-ai-service)
 
@@ -123,24 +151,15 @@ curl http://localhost:8080/health  # Biz Service
 
 ### 1. 文档管理
 
-```bash
-# 上传文档
-curl -X POST "http://localhost:8000/api/v1/documents" \
-  -H "Content-Type: multipart/form-data" \
-  -F "file=@document.pdf"
-
-# 获取文档列表
-curl "http://localhost:8000/api/v1/documents"
-```
+- 支持 PDF、TXT、Markdown 格式
+- 自动文档解析和切块
+- 处理状态实时显示
 
 ### 2. 智能问答
 
-```bash
-# 提交问题
-curl -X POST "http://localhost:8000/api/v1/qa" \
-  -H "Content-Type: application/json" \
-  -d '{"question": "公司的请假制度是怎样的？", "top_k": 5}'
-```
+- 基于 RAG 的对话式问答
+- 可选择特定文档范围
+- 显示答案来源和相关度评分
 
 ### 3. RAG 流程
 
@@ -154,12 +173,20 @@ curl -X POST "http://localhost:8000/api/v1/qa" \
 
 ```
 EKP/
+├── ekp-web/                 # 前端 (Next.js 15)
+│   ├── src/
+│   │   ├── app/             # 页面路由
+│   │   ├── components/      # UI组件
+│   │   ├── hooks/           # 自定义Hooks
+│   │   └── store/           # 状态管理
+│   ├── Dockerfile
+│   └── package.json
+│
 ├── ekp-ai-service/          # AI服务 (Python FastAPI)
 │   ├── src/
 │   │   ├── api/v1/          # API端点
 │   │   ├── models/          # 数据模型
 │   │   └── services/        # 业务服务
-│   ├── tests/               # 测试
 │   ├── Dockerfile
 │   └── requirements.txt
 │
@@ -172,12 +199,30 @@ EKP/
 │
 ├── ekp-infra/               # 基础设施
 │   ├── docker-compose.yml   # 容器编排
-│   ├── init-db/             # 数据库初始化
-│   └── *.sh                 # 启动脚本
+│   └── init-db/             # 数据库初始化
 │
 └── docs/                    # 文档
     └── PRODUCT_FEATURES.md  # 产品功能文档
 ```
+
+---
+
+## 页面预览
+
+### 首页
+- 系统概览和统计信息
+- 快速开始入口
+- 系统架构展示
+
+### 文档管理 (/documents)
+- 文档上传（拖拽或点击）
+- 文档列表和状态
+- 文档删除确认
+
+### 智能问答 (/qa)
+- 对话式问答界面
+- 右侧文档选择器
+- 答案来源展示
 
 ---
 
@@ -202,6 +247,7 @@ EKP/
 - [x] 向量数据库集成 (pgvector)
 - [x] 向量检索服务
 - [x] LLM问答集成
+- [x] **前端界面开发**
 
 ### 🚧 进行中 (Week 3-4)
 
@@ -217,6 +263,7 @@ EKP/
 ## 文档
 
 - [产品功能文档](docs/PRODUCT_FEATURES.md)
+- [前端开发文档](ekp-web/README.md)
 - [系统架构设计](ekp-infra/architecture.md)
 - [Week 1 总结](ekp-infra/WEEK1_SUMMARY.md)
 - [Week 2 总结](ekp-infra/WEEK2_SUMMARY.md)

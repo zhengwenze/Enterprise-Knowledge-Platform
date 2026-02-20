@@ -97,6 +97,22 @@ services:
     networks:
       - ekp-network
 
+  web:
+    build:
+      context: ../ekp-web
+      dockerfile: Dockerfile
+    container_name: ekp-web
+    depends_on:
+      - ai-service
+      - biz-service
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+      NEXT_PUBLIC_BIZ_URL: http://localhost:8080
+    networks:
+      - ekp-network
+
 volumes:
   postgres_data:
   redis_data:
