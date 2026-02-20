@@ -12,6 +12,14 @@ class QARequest(BaseModel):
     question: str
     document_ids: Optional[List[int]] = None
     top_k: int = 5
+    mode: str = "hybrid"
+    vlm_enhanced: bool = False
+
+
+class MultimodalQARequest(BaseModel):
+    question: str
+    multimodal_content: List[dict]
+    mode: str = "hybrid"
 
 
 class QASource(BaseModel):
@@ -41,6 +49,9 @@ def get_db():
     db = SyncSessionLocal()
     try:
         yield db
+    except Exception as e:
+        db.rollback()
+        raise
     finally:
         db.close()
 
@@ -61,6 +72,8 @@ async def ask_question(
         question=request.question,
         document_ids=request.document_ids,
         top_k=request.top_k,
+        mode=request.mode,
+        vlm_enhanced=request.vlm_enhanced,
     )
 
     session = service.save_qa_session(
@@ -84,7 +97,58 @@ async def ask_question(
     ]
 
     return QAResponse(
-        session_id=session.id,
+        session_id=session.id if session else 0,
+        question=request.question,
+        answer=result["answer"],
+        sources=sources,
+        model_used=result.get("model_used"),
+        tokens_used=result.get("tokens_used", 0),
+        response_time_ms=result.get("response_time_ms", 0),
+    )
+
+
+@router.post("/multimodal", response_model=QAResponse)
+async def ask_multimodal_question(
+    request: MultimodalQARequest,
+    service: LLMService = Depends(get_llm_service),
+):
+    if not request.question or not request.question.strip():
+        raise HTTPException(status_code=400, detail="问题不能为空")
+
+    if not request.multimodal_content:
+        raise HTTPException(status_code=400, detail="多模态内容不能为空")
+
+    import asyncio
+    result = asyncio.run(
+        service.generate_answer_with_multimodal(
+            question=request.question,
+            multimodal_content=request.multimodal_content,
+            mode=request.mode,
+        )
+    )
+
+    session = service.save_qa_session(
+        question=request.question,
+        answer=result["answer"],
+        sources=result["sources"],
+        model_used=result.get("model_used"),
+        tokens_used=result.get("tokens_used", 0),
+        response_time_ms=result.get("response_time_ms", 0),
+    )
+
+    sources = [
+        QASource(
+            chunk_id=s.get("chunk_id", 0),
+            document_id=s.get("document_id", 0),
+            document_title=s.get("document_title"),
+            content=s.get("content", ""),
+            relevance_score=s.get("relevance_score", 0.0),
+        )
+        for s in result["sources"]
+    ]
+
+    return QAResponse(
+        session_id=session.id if session else 0,
         question=request.question,
         answer=result["answer"],
         sources=sources,

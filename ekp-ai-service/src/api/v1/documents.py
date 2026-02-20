@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from datetime import datetime
 
 from src.services.document_service import DocumentService
+from src.services.document_processor import DocumentProcessor
 from src.database import SyncSessionLocal
 
 router = APIRouter()
@@ -46,6 +47,9 @@ def get_db():
     db = SyncSessionLocal()
     try:
         yield db
+    except Exception as e:
+        db.rollback()
+        raise
     finally:
         db.close()
 
@@ -76,6 +80,18 @@ async def upload_document(
         file_size=file_size,
         file_type=file_type,
     )
+
+    import asyncio
+    async def process_document_async():
+        try:
+            db = SyncSessionLocal()
+            processor = DocumentProcessor(db)
+            await processor.process_document_async(document.id)
+            db.close()
+        except Exception as e:
+            print(f"文档处理错误: {e}")
+
+    asyncio.create_task(process_document_async())
 
     return DocumentResponse(
         id=document.id,

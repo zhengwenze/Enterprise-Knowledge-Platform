@@ -6,12 +6,16 @@ python-multipart==0.0.6
 sqlalchemy==2.0.25
 psycopg2-binary==2.9.9
 asyncpg==0.29.0
-langchain==0.1.0
-langchain-community==0.0.10
-langchain-openai==0.0.2
-sentence-transformers==2.3.1
-pypdf==4.0.1
-unstructured==0.11.8
 pgvector==0.2.4
 python-dotenv==1.0.0
 httpx==0.26.0
+
+# RAG-Anything 核心依赖
+raganything>=0.1.0
+lightrag-hku>=0.1.0
+openai>=1.0.0
+
+# 本地嵌入模型
+sentence-transformers>=2.3.1
+
+# 本地 LLM 支持（通过 Ollama API，无需额外安装）

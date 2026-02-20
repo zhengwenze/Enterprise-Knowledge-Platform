@@ -70,9 +70,15 @@ services:
       DATABASE_URL: postgresql://ekp_user:ekp_password@postgres:5432/ekp_db
       REDIS_URL: redis://redis:6379/0
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+      LLM_MODEL: ${LLM_MODEL:-gpt-4o-mini}
+      VISION_MODEL: ${VISION_MODEL:-gpt-4o}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-text-embedding-3-large}
     volumes:
       - ../ekp-ai-service:/app
       - ai_uploads:/app/uploads
+      - rag_storage:/app/rag_storage
     networks:
       - ekp-network
 
@@ -118,6 +124,7 @@ volumes:
   redis_data:
   kafka_data:
   ai_uploads:
+  rag_storage:
 
 networks:
   ekp-network:
