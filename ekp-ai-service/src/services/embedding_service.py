@@ -1,5 +1,6 @@
 from typing import List, Optional
 import numpy as np
+import httpx
 
 from src.config import settings
 
@@ -7,6 +8,7 @@ from src.config import settings
 class EmbeddingService:
     _instance = None
     _model = None
+    _use_ollama = True
 
     def __new__(cls):
         if cls._instance is None:
@@ -14,7 +16,7 @@ class EmbeddingService:
         return cls._instance
 
     def __init__(self):
-        if self._model is None:
+        if self._model is None and not self._use_ollama:
             self._initialize_model()
 
     def _initialize_model(self):
@@ -31,35 +33,48 @@ class EmbeddingService:
 
     @property
     def dimension(self) -> int:
-        if self._model:
-            return self._model.get_sentence_embedding_dimension()
         return settings.embedding_dimension
 
     @property
     def is_ready(self) -> bool:
-        return self._model is not None
+        return True
 
-    def embed_texts(self, texts: List[str]) -> Optional[List[List[float]]]:
-        if not self._model:
-            print("嵌入模型未初始化")
+    def _get_ollama_embedding(self, text: str) -> Optional[List[float]]:
+        try:
+            with httpx.Client(timeout=60.0) as client:
+                response = client.post(
+                    f"{settings.local_llm_url}/api/embeddings",
+                    json={
+                        "model": settings.llm_model,
+                        "prompt": text,
+                    },
+                )
+                response.raise_for_status()
+                result = response.json()
+                return result.get("embedding", [])
+        except Exception as e:
+            print(f"Ollama 嵌入失败: {e}")
             return None
 
+    def embed_texts(self, texts: List[str]) -> Optional[List[List[float]]]:
         if not texts:
             return []
 
-        try:
-            embeddings = self._model.encode(texts, convert_to_numpy=True)
-            return embeddings.tolist()
-        except Exception as e:
-            print(f"文本嵌入失败: {e}")
-            return None
+        embeddings = []
+        for text in texts:
+            emb = self._get_ollama_embedding(text)
+            if emb:
+                embeddings.append(emb)
+            else:
+                return None
+
+        return embeddings
 
     def embed_single_text(self, text: str) -> Optional[List[float]]:
         if not text:
             return None
 
-        embeddings = self.embed_texts([text])
-        return embeddings[0] if embeddings else None
+        return self._get_ollama_embedding(text)
 
     def compute_similarity(self, embedding1: List[float], embedding2: List[float]) -> float:
         vec1 = np.array(embedding1)
@@ -77,20 +92,14 @@ class EmbeddingService:
     def batch_embed_with_progress(
         self, texts: List[str], batch_size: int = 32
     ) -> Optional[List[List[float]]]:
-        if not self._model:
-            return None
-
         all_embeddings = []
-        total_batches = (len(texts) + batch_size - 1) // batch_size
+        total = len(texts)
 
-        for i in range(0, len(texts), batch_size):
-            batch = texts[i : i + batch_size]
-            batch_num = i // batch_size + 1
-            print(f"处理批次 {batch_num}/{total_batches}")
-
-            embeddings = self.embed_texts(batch)
-            if embeddings:
-                all_embeddings.extend(embeddings)
+        for i, text in enumerate(texts):
+            print(f"处理文本 {i + 1}/{total}")
+            emb = self._get_ollama_embedding(text)
+            if emb:
+                all_embeddings.append(emb)
             else:
                 return None
 

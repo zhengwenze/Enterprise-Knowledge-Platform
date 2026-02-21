@@ -86,6 +86,24 @@ class RetrieverService:
             for doc in documents
         ]
 
+    def search(
+        self,
+        query: str,
+        top_k: int = 5,
+        document_ids: Optional[List[int]] = None,
+    ) -> List[dict]:
+        results = self.retrieve_relevant_chunks(query, top_k, document_ids)
+        return [
+            {
+                "id": r.chunk_id,
+                "document_id": r.document_id,
+                "document_title": r.document_title,
+                "content": r.content,
+                "similarity": r.score,
+            }
+            for r in results
+        ]
+
     def hybrid_search(
         self,
         query: str,

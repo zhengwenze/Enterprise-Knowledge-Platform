@@ -10,24 +10,18 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
     kafka_bootstrap_servers: str = "localhost:9092"
 
-    # LLM 模式选择
-    use_local_llm: bool = True  # True = 使用本地模型，False = 使用 OpenAI API
+    use_local_llm: bool = True
+    local_llm_url: str = "http://host.docker.internal:11434"
+    local_llm_model: str = "qwen2.5:7b"
 
-    # 本地 LLM 配置（Ollama）
-    local_llm_url: str = "http://host.docker.internal:11434"  # Docker 容器访问宿主机 Ollama
-    local_llm_model: str = "qwen2.5:7b"  # 或 llama3.1, chatglm3 等
-
-    # OpenAI API 配置（可选）
     openai_api_key: str = ""
     openai_base_url: str = ""
 
-    # 模型配置
-    llm_model: str = "qwen2.5:7b"  # 本地模型名或 gpt-4o-mini
-    vision_model: str = "llava:7b"  # 本地视觉模型或 gpt-4o
-    embedding_model: str = "BAAI/bge-large-zh"  # 本地嵌入模型
-    embedding_dimension: int = 1024  # bge-large-zh 维度
+    llm_model: str = "qwen2.5:7b"
+    vision_model: str = "llava:7b"
+    embedding_model: str = "BAAI/bge-large-zh"
+    embedding_dimension: int = 1024
 
-    # RAG-Anything 配置
     rag_working_dir: str = "./rag_storage"
     rag_parser: str = "mineru"
     rag_parse_method: str = "auto"
@@ -35,13 +29,13 @@ class Settings(BaseSettings):
     enable_table_processing: bool = True
     enable_equation_processing: bool = True
 
-    # 文档处理配置
     chunk_size: int = 1000
     chunk_overlap: int = 200
 
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
+        case_sensitive = False
 
 
 settings = Settings()
