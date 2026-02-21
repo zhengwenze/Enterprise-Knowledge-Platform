@@ -13,12 +13,10 @@ httpx==0.26.0
 # Redis
 redis==5.0.1
 
-# RAG-Anything 核心依赖
-raganything>=0.1.0
-lightrag-hku>=0.1.0
-openai>=1.0.0
-
 # 本地嵌入模型
 sentence-transformers>=2.3.1
+
+# PDF 解析
+pypdf>=4.0.0
 
 # 本地 LLM 支持（通过 Ollama API，无需额外安装）

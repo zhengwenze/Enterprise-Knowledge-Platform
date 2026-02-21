@@ -1,10 +1,6 @@
 from typing import List
 from dataclasses import dataclass
-
-try:
-    from langchain_text_splitters import RecursiveCharacterTextSplitter
-except ImportError:
-    from langchain.text_splitter import RecursiveCharacterTextSplitter
+import re
 
 from src.config import settings
 
@@ -24,37 +20,109 @@ class ChunkerService:
     ):
         self.chunk_size = chunk_size or settings.chunk_size
         self.chunk_overlap = chunk_overlap or settings.chunk_overlap
-        self._splitter = None
-
-    @property
-    def splitter(self) -> RecursiveCharacterTextSplitter:
-        if self._splitter is None:
-            self._splitter = RecursiveCharacterTextSplitter(
-                chunk_size=self.chunk_size,
-                chunk_overlap=self.chunk_overlap,
-                length_function=len,
-                separators=["\n\n", "\n", "。", "！", "？", "；", "，", " ", ""],
-            )
-        return self._splitter
 
     def chunk_text(self, text: str) -> List[TextChunk]:
         if not text or not text.strip():
             return []
 
-        chunks = self.splitter.split_text(text)
+        paragraphs = re.split(r'\n\s*\n', text)
+        
+        chunks = []
+        current_chunk = ""
+        chunk_index = 0
 
-        result = []
-        for index, chunk_content in enumerate(chunks):
-            token_count = self._estimate_token_count(chunk_content)
-            result.append(
+        for para in paragraphs:
+            para = para.strip()
+            if not para:
+                continue
+
+            if len(current_chunk) + len(para) + 2 <= self.chunk_size:
+                current_chunk += "\n\n" + para if current_chunk else para
+            else:
+                if current_chunk:
+                    token_count = self._estimate_token_count(current_chunk)
+                    chunks.append(
+                        TextChunk(
+                            content=current_chunk,
+                            chunk_index=chunk_index,
+                            token_count=token_count,
+                        )
+                    )
+                    chunk_index += 1
+
+                if len(para) > self.chunk_size:
+                    sub_chunks = self._split_long_paragraph(para, chunk_index)
+                    chunks.extend(sub_chunks)
+                    chunk_index += len(sub_chunks)
+                    current_chunk = ""
+                else:
+                    current_chunk = para
+
+        if current_chunk:
+            token_count = self._estimate_token_count(current_chunk)
+            chunks.append(
                 TextChunk(
-                    content=chunk_content,
-                    chunk_index=index,
+                    content=current_chunk,
+                    chunk_index=chunk_index,
                     token_count=token_count,
                 )
             )
 
-        return result
+        return chunks
+
+    def _split_long_paragraph(self, text: str, start_index: int) -> List[TextChunk]:
+        chunks = []
+        sentences = re.split(r'([。！？；\n])', text)
+        
+        current_chunk = ""
+        chunk_index = start_index
+
+        for i in range(0, len(sentences), 2):
+            sentence = sentences[i]
+            delimiter = sentences[i + 1] if i + 1 < len(sentences) else ""
+            full_sentence = sentence + delimiter
+
+            if len(current_chunk) + len(full_sentence) <= self.chunk_size:
+                current_chunk += full_sentence
+            else:
+                if current_chunk:
+                    token_count = self._estimate_token_count(current_chunk)
+                    chunks.append(
+                        TextChunk(
+                            content=current_chunk,
+                            chunk_index=chunk_index,
+                            token_count=token_count,
+                        )
+                    )
+                    chunk_index += 1
+
+                if len(full_sentence) > self.chunk_size:
+                    for j in range(0, len(full_sentence), self.chunk_size):
+                        sub = full_sentence[j:j + self.chunk_size]
+                        token_count = self._estimate_token_count(sub)
+                        chunks.append(
+                            TextChunk(
+                                content=sub,
+                                chunk_index=chunk_index,
+                                token_count=token_count,
+                            )
+                        )
+                        chunk_index += 1
+                    current_chunk = ""
+                else:
+                    current_chunk = full_sentence
+
+        if current_chunk:
+            token_count = self._estimate_token_count(current_chunk)
+            chunks.append(
+                TextChunk(
+                    content=current_chunk,
+                    chunk_index=chunk_index,
+                    token_count=token_count,
+                )
+            )
+
+        return chunks
 
     def _estimate_token_count(self, text: str) -> int:
         chinese_chars = sum(1 for c in text if "\u4e00" <= c <= "\u9fff")

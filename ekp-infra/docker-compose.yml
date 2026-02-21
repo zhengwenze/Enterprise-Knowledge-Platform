@@ -70,11 +70,18 @@ services:
       DATABASE_URL: postgresql://ekp_user:ekp_password@postgres:5432/ekp_db
       REDIS_URL: redis://redis:6379/0
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      # 本地模型配置（Ollama）
+      USE_LOCAL_LLM: "true"
+      LOCAL_LLM_URL: http://host.docker.internal:11434
+      LLM_MODEL: ${LLM_MODEL:-qwen2.5:7b}
+      VISION_MODEL: ${VISION_MODEL:-llava:7b}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-BAAI/bge-large-zh}
+      EMBEDDING_DIMENSION: ${EMBEDDING_DIMENSION:-1024}
+      # OpenAI 配置（可选）
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
-      LLM_MODEL: ${LLM_MODEL:-gpt-4o-mini}
-      VISION_MODEL: ${VISION_MODEL:-gpt-4o}
-      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-text-embedding-3-large}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ../ekp-ai-service:/app
       - ai_uploads:/app/uploads

@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     use_local_llm: bool = True  # True = 使用本地模型，False = 使用 OpenAI API
 
     # 本地 LLM 配置（Ollama）
-    local_llm_url: str = "http://localhost:11434"
+    local_llm_url: str = "http://host.docker.internal:11434"  # Docker 容器访问宿主机 Ollama
     local_llm_model: str = "qwen2.5:7b"  # 或 llama3.1, chatglm3 等
 
     # OpenAI API 配置（可选）

@@ -1,8 +1,10 @@
 from typing import List, Optional
 from fastapi import APIRouter, HTTPException, Depends, Query
 from pydantic import BaseModel
+import asyncio
 
 from src.services.llm_service import LLMService
+from src.services.retriever_service import RetrieverService
 from src.database import SyncSessionLocal
 
 router = APIRouter()
@@ -12,14 +14,6 @@ class QARequest(BaseModel):
     question: str
     document_ids: Optional[List[int]] = None
     top_k: int = 5
-    mode: str = "hybrid"
-    vlm_enhanced: bool = False
-
-
-class MultimodalQARequest(BaseModel):
-    question: str
-    multimodal_content: List[dict]
-    mode: str = "hybrid"
 
 
 class QASource(BaseModel):
@@ -60,44 +54,52 @@ def get_llm_service(db=Depends(get_db)) -> LLMService:
     return LLMService(db)
 
 
+def get_retriever_service(db=Depends(get_db)) -> RetrieverService:
+    return RetrieverService(db)
+
+
 @router.post("", response_model=QAResponse)
 async def ask_question(
     request: QARequest,
-    service: LLMService = Depends(get_llm_service),
+    llm_service: LLMService = Depends(get_llm_service),
+    retriever_service: RetrieverService = Depends(get_retriever_service),
 ):
     if not request.question or not request.question.strip():
         raise HTTPException(status_code=400, detail="问题不能为空")
 
-    result = service.generate_answer(
+    context = ""
+    sources = []
+    
+    try:
+        chunks = retriever_service.search(
+            query=request.question,
+            top_k=request.top_k,
+            document_ids=request.document_ids,
+        )
+        
+        if chunks:
+            context_parts = []
+            for chunk in chunks:
+                context_parts.append(chunk.get("content", ""))
+                sources.append({
+                    "chunk_id": chunk.get("id", 0),
+                    "document_id": chunk.get("document_id", 0),
+                    "document_title": chunk.get("document_title"),
+                    "content": chunk.get("content", "")[:200] + "...",
+                    "relevance_score": chunk.get("similarity", 0.0),
+                })
+            context = "\n\n---\n\n".join(context_parts)
+    except Exception as e:
+        print(f"检索失败: {e}")
+
+    result = await llm_service.generate_answer_async(
         question=request.question,
+        context=context,
         document_ids=request.document_ids,
         top_k=request.top_k,
-        mode=request.mode,
-        vlm_enhanced=request.vlm_enhanced,
     )
 
-    session = service.save_qa_session(
-        question=request.question,
-        answer=result["answer"],
-        sources=result["sources"],
-        model_used=result.get("model_used"),
-        tokens_used=result.get("tokens_used", 0),
-        response_time_ms=result.get("response_time_ms", 0),
-    )
-
-    sources = [
-        QASource(
-            chunk_id=s.get("chunk_id", 0),
-            document_id=s.get("document_id", 0),
-            document_title=s.get("document_title"),
-            content=s.get("content", ""),
-            relevance_score=s.get("relevance_score", 0.0),
-        )
-        for s in result["sources"]
-    ]
-
-    return QAResponse(
-        session_id=session.id if session else 0,
+    session = llm_service.save_qa_session(
         question=request.question,
         answer=result["answer"],
         sources=sources,
@@ -106,37 +108,7 @@ async def ask_question(
         response_time_ms=result.get("response_time_ms", 0),
     )
 
-
-@router.post("/multimodal", response_model=QAResponse)
-async def ask_multimodal_question(
-    request: MultimodalQARequest,
-    service: LLMService = Depends(get_llm_service),
-):
-    if not request.question or not request.question.strip():
-        raise HTTPException(status_code=400, detail="问题不能为空")
-
-    if not request.multimodal_content:
-        raise HTTPException(status_code=400, detail="多模态内容不能为空")
-
-    import asyncio
-    result = asyncio.run(
-        service.generate_answer_with_multimodal(
-            question=request.question,
-            multimodal_content=request.multimodal_content,
-            mode=request.mode,
-        )
-    )
-
-    session = service.save_qa_session(
-        question=request.question,
-        answer=result["answer"],
-        sources=result["sources"],
-        model_used=result.get("model_used"),
-        tokens_used=result.get("tokens_used", 0),
-        response_time_ms=result.get("response_time_ms", 0),
-    )
-
-    sources = [
+    qa_sources = [
         QASource(
             chunk_id=s.get("chunk_id", 0),
             document_id=s.get("document_id", 0),
@@ -144,14 +116,14 @@ async def ask_multimodal_question(
             content=s.get("content", ""),
             relevance_score=s.get("relevance_score", 0.0),
         )
-        for s in result["sources"]
+        for s in sources
     ]
 
     return QAResponse(
         session_id=session.id if session else 0,
         question=request.question,
         answer=result["answer"],
-        sources=sources,
+        sources=qa_sources,
         model_used=result.get("model_used"),
         tokens_used=result.get("tokens_used", 0),
         response_time_ms=result.get("response_time_ms", 0),
@@ -161,16 +133,16 @@ async def ask_multimodal_question(
 @router.get("/{session_id}", response_model=QAResponse)
 async def get_qa_session(
     session_id: int,
-    service: LLMService = Depends(get_llm_service),
+    llm_service: LLMService = Depends(get_llm_service),
 ):
     from src.models.document import QASession, QASource
 
-    session = service.db.query(QASession).filter(QASession.id == session_id).first()
+    session = llm_service.db.query(QASession).filter(QASession.id == session_id).first()
     if not session:
         raise HTTPException(status_code=404, detail="问答会话不存在")
 
     sources = (
-        service.db.query(QASource).filter(QASource.session_id == session_id).all()
+        llm_service.db.query(QASource).filter(QASource.session_id == session_id).all()
     )
 
     return QAResponse(
@@ -197,17 +169,17 @@ async def get_qa_history(
     skip: int = Query(0, ge=0),
     limit: int = Query(10, ge=1, le=100),
     document_id: Optional[int] = Query(None),
-    service: LLMService = Depends(get_llm_service),
+    llm_service: LLMService = Depends(get_llm_service),
 ):
     from src.models.document import QASession
 
-    sessions = service.get_qa_history(
+    sessions = llm_service.get_qa_history(
         document_id=document_id,
         limit=limit,
         offset=skip,
     )
 
-    total = service.db.query(QASession).count()
+    total = llm_service.db.query(QASession).count()
 
     return QAHistoryResponse(
         sessions=[
