@@ -8,7 +8,7 @@ from src.config import settings
 class EmbeddingService:
     _instance = None
     _model = None
-    _use_ollama = True
+    _use_local = True
 
     def __new__(cls):
         if cls._instance is None:
@@ -16,7 +16,7 @@ class EmbeddingService:
         return cls._instance
 
     def __init__(self):
-        if self._model is None and not self._use_ollama:
+        if self._model is None:
             self._initialize_model()
 
     def _initialize_model(self):
@@ -26,55 +26,52 @@ class EmbeddingService:
             model_name = settings.embedding_model
             print(f"正在加载嵌入模型: {model_name}")
             self._model = SentenceTransformer(model_name)
-            print(f"嵌入模型加载完成，维度: {self._model.get_sentence_embedding_dimension()}")
+            self._dimension = self._model.get_sentence_embedding_dimension()
+            print(f"嵌入模型加载完成，维度: {self._dimension}")
         except Exception as e:
             print(f"嵌入模型加载失败: {e}")
             self._model = None
+            self._dimension = settings.embedding_dimension
 
     @property
     def dimension(self) -> int:
+        if self._model:
+            return self._dimension
         return settings.embedding_dimension
 
     @property
     def is_ready(self) -> bool:
-        return True
-
-    def _get_ollama_embedding(self, text: str) -> Optional[List[float]]:
-        try:
-            with httpx.Client(timeout=60.0) as client:
-                response = client.post(
-                    f"{settings.local_llm_url}/api/embeddings",
-                    json={
-                        "model": settings.llm_model,
-                        "prompt": text,
-                    },
-                )
-                response.raise_for_status()
-                result = response.json()
-                return result.get("embedding", [])
-        except Exception as e:
-            print(f"Ollama 嵌入失败: {e}")
-            return None
+        return self._model is not None
 
     def embed_texts(self, texts: List[str]) -> Optional[List[List[float]]]:
         if not texts:
             return []
 
-        embeddings = []
-        for text in texts:
-            emb = self._get_ollama_embedding(text)
-            if emb:
-                embeddings.append(emb)
-            else:
-                return None
+        if self._model is None:
+            print("嵌入模型未初始化")
+            return None
 
-        return embeddings
+        try:
+            embeddings = self._model.encode(texts, convert_to_numpy=True)
+            return embeddings.tolist()
+        except Exception as e:
+            print(f"嵌入生成失败: {e}")
+            return None
 
     def embed_single_text(self, text: str) -> Optional[List[float]]:
         if not text:
             return None
 
-        return self._get_ollama_embedding(text)
+        if self._model is None:
+            print("嵌入模型未初始化")
+            return None
+
+        try:
+            embedding = self._model.encode(text, convert_to_numpy=True)
+            return embedding.tolist()
+        except Exception as e:
+            print(f"嵌入生成失败: {e}")
+            return None
 
     def compute_similarity(self, embedding1: List[float], embedding2: List[float]) -> float:
         vec1 = np.array(embedding1)
@@ -92,15 +89,21 @@ class EmbeddingService:
     def batch_embed_with_progress(
         self, texts: List[str], batch_size: int = 32
     ) -> Optional[List[List[float]]]:
-        all_embeddings = []
-        total = len(texts)
+        if self._model is None:
+            print("嵌入模型未初始化")
+            return None
 
-        for i, text in enumerate(texts):
-            print(f"处理文本 {i + 1}/{total}")
-            emb = self._get_ollama_embedding(text)
-            if emb:
-                all_embeddings.append(emb)
-            else:
-                return None
+        try:
+            all_embeddings = []
+            total = len(texts)
 
-        return all_embeddings
+            for i in range(0, total, batch_size):
+                batch = texts[i:i + batch_size]
+                print(f"处理文本批次 {i // batch_size + 1}/{(total + batch_size - 1) // batch_size}")
+                embeddings = self._model.encode(batch, convert_to_numpy=True)
+                all_embeddings.extend(embeddings.tolist())
+
+            return all_embeddings
+        except Exception as e:
+            print(f"批量嵌入生成失败: {e}")
+            return None
