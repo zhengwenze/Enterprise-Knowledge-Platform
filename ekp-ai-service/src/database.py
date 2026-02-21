@@ -14,6 +14,14 @@ AsyncSessionLocal = async_sessionmaker(async_engine, class_=AsyncSession, expire
 Base = declarative_base()
 
 
+def get_db():
+    db = SyncSessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
 def get_sync_db():
     db = SyncSessionLocal()
     try:
